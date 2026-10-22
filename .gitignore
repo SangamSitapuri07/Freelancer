@@ -1,0 +1,17 @@
+# Datasets (source of truth lives in Google Drive)
+data/
+google_drive/
+
+# Trained artifacts (uploaded back to Google Drive)
+models/
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Notebooks / OS
+.ipynb_checkpoints/
+.DS_Store

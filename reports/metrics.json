@@ -1,0 +1,160 @@
+{
+  "model": "tfidf_word_char+linguistic_features/ensemble(lr+svm)",
+  "n_train": 6472,
+  "n_test": 1619,
+  "feature_dims": 79383,
+  "best_C": {
+    "logreg": 2.0,
+    "svm": 2.0
+  },
+  "cv_scores": {
+    "logreg": {
+      "0.5": 0.9135632112899447,
+      "1.0": 0.9228208660674091,
+      "2.0": 0.9265488530949012
+    },
+    "svm": {
+      "0.5": 0.9314473416776549,
+      "1.0": 0.931278043147587,
+      "2.0": 0.9317276103172268
+    }
+  },
+  "logreg": {
+    "accuracy": 0.9444101297096974,
+    "macro_f1": 0.9444367177765681,
+    "report": {
+      "weak": {
+        "precision": 0.9173989455184535,
+        "recall": 0.9666666666666667,
+        "f1-score": 0.9413886384129847,
+        "support": 540.0
+      },
+      "moderate": {
+        "precision": 0.9734345351043643,
+        "recall": 0.9517625231910947,
+        "f1-score": 0.9624765478424016,
+        "support": 539.0
+      },
+      "strong": {
+        "precision": 0.9445506692160612,
+        "recall": 0.9148148148148149,
+        "f1-score": 0.929444967074318,
+        "support": 540.0
+      },
+      "accuracy": 0.9444101297096974,
+      "macro avg": {
+        "precision": 0.945128049946293,
+        "recall": 0.9444146682241921,
+        "f1-score": 0.9444367177765681,
+        "support": 1619.0
+      },
+      "weighted avg": {
+        "precision": 0.9451105660147562,
+        "recall": 0.9444101297096974,
+        "f1-score": 0.9444255752008635,
+        "support": 1619.0
+      }
+    }
+  },
+  "svm": {
+    "accuracy": 0.9481161210623842,
+    "macro_f1": 0.9481434388809905,
+    "report": {
+      "weak": {
+        "precision": 0.946983546617916,
+        "recall": 0.9592592592592593,
+        "f1-score": 0.953081876724931,
+        "support": 540.0
+      },
+      "moderate": {
+        "precision": 0.9661016949152542,
+        "recall": 0.9517625231910947,
+        "f1-score": 0.9588785046728971,
+        "support": 539.0
+      },
+      "strong": {
+        "precision": 0.9316081330868762,
+        "recall": 0.9333333333333333,
+        "f1-score": 0.9324699352451434,
+        "support": 540.0
+      },
+      "accuracy": 0.9481161210623842,
+      "macro avg": {
+        "precision": 0.9482311248733488,
+        "recall": 0.9481183719278957,
+        "f1-score": 0.9481434388809905,
+        "support": 1619.0
+      },
+      "weighted avg": {
+        "precision": 0.948220086843675,
+        "recall": 0.9481161210623842,
+        "f1-score": 0.948136808204158,
+        "support": 1619.0
+      }
+    }
+  },
+  "ensemble": {
+    "accuracy": 0.9481161210623842,
+    "macro_f1": 0.9481438997742379,
+    "report": {
+      "weak": {
+        "precision": 0.9369369369369369,
+        "recall": 0.9629629629629629,
+        "f1-score": 0.9497716894977168,
+        "support": 540.0
+      },
+      "moderate": {
+        "precision": 0.9715909090909091,
+        "recall": 0.9517625231910947,
+        "f1-score": 0.9615745079662605,
+        "support": 539.0
+      },
+      "strong": {
+        "precision": 0.9365671641791045,
+        "recall": 0.9296296296296296,
+        "f1-score": 0.9330855018587361,
+        "support": 540.0
+      },
+      "accuracy": 0.9481161210623842,
+      "macro avg": {
+        "precision": 0.9483650034023169,
+        "recall": 0.9481183719278957,
+        "f1-score": 0.9481438997742379,
+        "support": 1619.0
+      },
+      "weighted avg": {
+        "precision": 0.9483506575680434,
+        "recall": 0.9481161210623842,
+        "f1-score": 0.9481356041546011,
+        "support": 1619.0
+      }
+    }
+  },
+  "feature_names_dense": [
+    "n_words",
+    "n_chars",
+    "avg_word_len",
+    "type_token_ratio",
+    "n_sentences",
+    "avg_sentence_len",
+    "n_digits",
+    "n_percent",
+    "has_money",
+    "n_citation_markers",
+    "n_stat_markers",
+    "n_hedges",
+    "n_anecdote_markers",
+    "n_superlative_markers",
+    "n_first_person",
+    "n_exclaim",
+    "n_question",
+    "n_quotes",
+    "stat_test_pattern",
+    "year_paren",
+    "flesch_kincaid",
+    "gunning_fog",
+    "zipf_mean",
+    "frac_rare_words"
+  ],
+  "train_seconds": 56.5
+}
