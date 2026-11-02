@@ -1,0 +1,49 @@
+services:
+  - type: web
+    name: ghostgate
+    runtime: node
+    plan: starter
+    buildCommand: npm ci
+    startCommand: node --disable-warning=ExperimentalWarning src/server.js
+    healthCheckPath: /v1/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 8080
+      - key: HOST
+        value: 0.0.0.0
+      - key: DATA_DIR
+        value: /var/data
+      - key: DB_PATH
+        value: /var/data/ghostgate.db
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ADMIN_NAME
+        value: Administrator
+      - key: HWID_PEPPER
+        sync: false
+      - key: SESSION_HOURS
+        value: "24"
+      - key: ADMIN_SESSION_HOURS
+        value: "12"
+      - key: CORS_ORIGIN
+        sync: false
+      - key: AI_BASE_URL
+        value: https://api.groq.com/openai/v1
+      - key: AI_API_KEY
+        sync: false
+      - key: AI_MODEL
+        value: openai/gpt-oss-120b
+      - key: AI_TIMEOUT_MS
+        value: "90000"
+      - key: AI_CREDITS_PER_REQUEST
+        value: "1"
+      - key: AI_TOKENS_PER_CREDIT
+        value: "1000"
+    disk:
+      name: ghostgate-data
+      mountPath: /var/data
+      sizeGB: 1
