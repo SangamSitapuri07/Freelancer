@@ -67,7 +67,7 @@ pub fn dashboard_html(state: &AppState, csrf: &str, flash: Option<&str>, error: 
         let rows = stmt.query_map([], |r| Ok((r.get::<_,String>(0)?, r.get::<_,Option<String>>(1)?, r.get::<_,String>(2)?, r.get::<_,String>(3)?)))?.collect::<rusqlite::Result<Vec<_>>>()?;
         rows
     };
-    let mut html = String::from(r#"<header><h1>GhostAI control</h1><form method="post" action="/admin/logout"><input type="hidden" name="csrf_token" value="{csrf}"><button class="secondary" type="submit">Sign out</button></form></header><main>"#);
+    let mut html = format!(r#"<header><h1>GhostAI control</h1><form method="post" action="/admin/logout"><input type="hidden" name="csrf_token" value="{csrf}"><button class="secondary" type="submit">Sign out</button></form></header><main>"#);
     if let Some(message) = flash { let _ = write!(html, r#"<p class="notice">{}</p>"#, esc(message)); }
     if let Some(message) = error { let _ = write!(html, r#"<p class="error">{}</p>"#, esc(message)); }
     let _ = write!(html, r#"<section><h2>Create registration</h2><form method="post" action="/admin/licenses" class="grid"><input type="hidden" name="csrf_token" value="{csrf}"><label>User / label<input name="label" required maxlength="80"></label><label>Token limit<input name="token_limit" type="number" min="1" max="1000000000" value="100000" required></label><label>Request limit<input name="request_limit" type="number" min="1" max="1000000000" value="100" required></label><label>Expiry (UTC, optional)<input name="expires_at" type="datetime-local"></label><button type="submit">Create code</button></form></section>"#);
