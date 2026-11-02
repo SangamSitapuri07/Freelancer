@@ -38,6 +38,17 @@ jobs:
             const fs = require('fs');
             const log = fs.existsSync('server-build.log') ? fs.readFileSync('server-build.log', 'utf8') : 'No log captured';
             await github.rest.repos.createCommitComment({owner: context.repo.owner, repo: context.repo.repo, commit_sha: context.sha, body: '### server build log\n```\n' + log.slice(-30000) + '\n```'});
+      - name: Commit generated lockfile
+        if: success() && github.event_name == 'push'
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Cargo.lock
+          if ! git diff --cached --quiet; then
+            git commit -m "Update Cargo.lock [skip ci]"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
