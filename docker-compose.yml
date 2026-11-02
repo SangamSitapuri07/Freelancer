@@ -1,0 +1,31 @@
+services:
+  ghostgate:
+    build: .
+    container_name: ghostgate
+    ports:
+      - "8080:8080"
+    environment:
+      NODE_ENV: production
+      PORT: 8080
+      HOST: 0.0.0.0
+      DATA_DIR: /app/data
+      DB_PATH: /app/data/ghostgate.db
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@ghostgate.local}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-GhostGate!2026}
+      ADMIN_NAME: ${ADMIN_NAME:-Administrator}
+      HWID_PEPPER: ${HWID_PEPPER:-}
+      SESSION_HOURS: ${SESSION_HOURS:-24}
+      ADMIN_SESSION_HOURS: ${ADMIN_SESSION_HOURS:-12}
+      CORS_ORIGIN: ${CORS_ORIGIN:-}
+      AI_BASE_URL: ${AI_BASE_URL:-https://api.groq.com/openai/v1}
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_MODEL: ${AI_MODEL:-openai/gpt-oss-120b}
+      AI_TIMEOUT_MS: ${AI_TIMEOUT_MS:-90000}
+      AI_CREDITS_PER_REQUEST: ${AI_CREDITS_PER_REQUEST:-1}
+      AI_TOKENS_PER_CREDIT: ${AI_TOKENS_PER_CREDIT:-1000}
+    volumes:
+      - ghostgate-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  ghostgate-data:

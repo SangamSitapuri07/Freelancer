@@ -1,0 +1,33 @@
+{
+  "name": "ghostgate",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Self-hosted license, device-binding, credit-control, and AI proxy server for legitimate software.",
+  "type": "module",
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/server.js",
+    "dev": "node --disable-warning=ExperimentalWarning --watch src/server.js",
+    "test": "node --disable-warning=ExperimentalWarning --test test/*.test.js",
+    "create-admin": "node --disable-warning=ExperimentalWarning scripts/create-admin.mjs",
+    "seed-demo": "node --disable-warning=ExperimentalWarning scripts/seed-demo.mjs",
+    "demo-client": "node --disable-warning=ExperimentalWarning scripts/demo-client.mjs",
+    "build:release": "./scripts/build-release.sh"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.3.1",
+    "@fastify/helmet": "^13.2.0",
+    "@fastify/rate-limit": "^11.2.1",
+    "@fastify/static": "^10.1.8",
+    "dotenv": "^18.0.9",
+    "fastify": "^5.12.7",
+    "node-machine-id": "^1.1.12",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "jsdom": "^30.1.3"
+  }
+}
