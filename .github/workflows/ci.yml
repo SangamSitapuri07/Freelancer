@@ -4,6 +4,11 @@ on:
     branches: [ghost, "arena/**"]
   pull_request:
   workflow_dispatch:
+    inputs:
+      server_url:
+        description: "Production control-server URL for the Windows ZIP (HTTPS, except loopback)"
+        required: false
+        default: "http://127.0.0.1:8787"
 
 permissions:
   contents: write
@@ -78,7 +83,9 @@ jobs:
             await github.rest.repos.createCommitComment({owner: context.repo.owner, repo: context.repo.repo, commit_sha: context.sha, body: '### windows build log\n```\n' + log.slice(-30000) + '\n```'});
       - name: Package ZIP
         shell: pwsh
-        run: ./scripts/package-windows.ps1 -ServerUrl "http://127.0.0.1:8787" -SkipBuild
+        env:
+          SERVER_URL: ${{ github.event.inputs.server_url || 'http://127.0.0.1:8787' }}
+        run: ./scripts/package-windows.ps1 -ServerUrl $env:SERVER_URL -SkipBuild
       - uses: actions/upload-artifact@v4
         if: success()
         with:

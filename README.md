@@ -110,6 +110,7 @@ GitHub Actions builds the server on Linux, builds/packages the Windows client, a
 
 ## Documentation
 
+- [Where/how to host](docs/HOSTING.md)
 - [Deployment](docs/DEPLOYMENT.md)
 - [Security model and limits](docs/SECURITY.md)
 - [Windows packaging](docs/WINDOWS.md)
