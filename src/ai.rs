@@ -1,5 +1,6 @@
 use tracing::{info, error};
 
+const GROQ_API_KEY: &str = "gsk_LtXdIfdM3YR4Pp9LNZ1QWGdyb3FY";
 const GROQ_URL: &str = "https://api.groq.com/openai/v1/chat/completions";
 const MODEL_VISION: &str = "qwen/qwen3.8-27b";
 const MODEL_TEXT: &str = "openai/gpt-oss-120b";
@@ -150,25 +151,11 @@ async fn call_api(
     client: reqwest::Client,
     body: serde_json::Value,
 ) -> Result<String, Box<dyn std::error::Error>> {
-    let api_key = std::env::var("GROQ_API_KEY").map_err(|_| {
-        std::io::Error::new(
-            std::io::ErrorKind::NotFound,
-            "GROQ_API_KEY environment variable is not set",
-        )
-    })?;
-    if api_key.trim().is_empty() {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidInput,
-            "GROQ_API_KEY environment variable is empty",
-        )
-        .into());
-    }
-
     let res = client
         .post(GROQ_URL)
         .header(
             "Authorization",
-            format!("Bearer {}", api_key)
+            format!("Bearer {}", GROQ_API_KEY)
         )
         .header("Content-Type", "application/json")
         .json(&body)
