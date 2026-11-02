@@ -145,7 +145,7 @@ async fn uncertain_requests_hold_allowance_until_owner_releases() {
     assert_eq!(reply.status, StatusCode::CONFLICT);
     let request_id = {
         let conn = t.state.db.lock().unwrap();
-        let (id, held): (String, i64) = conn.query_row("SELECT id,tokens_used FROM ai_requests JOIN licenses ON licenses.id=ai_requests.license_id", [], |r| Ok((r.get(0)?, r.get(1)?))).unwrap();
+        let (id, held): (String, i64) = conn.query_row("SELECT ai_requests.id,licenses.tokens_used FROM ai_requests JOIN licenses ON licenses.id=ai_requests.license_id", [], |r| Ok((r.get(0)?, r.get(1)?))).unwrap();
         assert!(held > 0);
         id
     };
