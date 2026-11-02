@@ -1,2 +1,8 @@
 /target
 .env
+server/.env
+server/data/
+artifacts/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal

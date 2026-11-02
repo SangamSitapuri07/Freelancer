@@ -1,0 +1,93 @@
+name: CI
+on:
+  push:
+    branches: [ghost, "arena/**"]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      server_url:
+        description: "Production control-server URL for the Windows ZIP (HTTPS, except loopback)"
+        required: false
+        default: "http://127.0.0.1:8787"
+
+permissions:
+  contents: write
+
+jobs:
+  server:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Generate lockfile
+        run: cargo generate-lockfile
+      - name: Test control server
+        shell: bash
+        run: set -o pipefail; cargo test -p ghost-control-server 2>&1 | tee server-test.log
+      - name: Report server test errors
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const log = fs.existsSync('server-test.log') ? fs.readFileSync('server-test.log', 'utf8') : 'No log captured';
+            await github.rest.repos.createCommitComment({owner: context.repo.owner, repo: context.repo.repo, commit_sha: context.sha, body: '### server test log\n```\n' + log.slice(-30000) + '\n```'});
+      - name: Build control server
+        shell: bash
+        run: set -o pipefail; cargo build --release -p ghost-control-server 2>&1 | tee server-build.log
+      - name: Report server build errors
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const log = fs.existsSync('server-build.log') ? fs.readFileSync('server-build.log', 'utf8') : 'No log captured';
+            await github.rest.repos.createCommitComment({owner: context.repo.owner, repo: context.repo.repo, commit_sha: context.sha, body: '### server build log\n```\n' + log.slice(-30000) + '\n```'});
+      - name: Commit generated lockfile
+        if: success() && github.event_name == 'push'
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Cargo.lock
+          if ! git diff --cached --quiet; then
+            git commit -m "Update Cargo.lock [skip ci]"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cargo-lock
+          path: Cargo.lock
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: ghost-control-server-linux
+          path: target/release/ghost-control-server
+
+  windows-client:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build Windows client
+        shell: bash
+        run: set -o pipefail; cargo build --release -p ghost_ai 2>&1 | tee windows-build.log
+      - name: Report Windows build errors
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const log = fs.existsSync('windows-build.log') ? fs.readFileSync('windows-build.log', 'utf8') : 'No log captured';
+            await github.rest.repos.createCommitComment({owner: context.repo.owner, repo: context.repo.repo, commit_sha: context.sha, body: '### windows build log\n```\n' + log.slice(-30000) + '\n```'});
+      - name: Package ZIP
+        shell: pwsh
+        env:
+          SERVER_URL: ${{ github.event.inputs.server_url || 'http://127.0.0.1:8787' }}
+        run: ./scripts/package-windows.ps1 -ServerUrl $env:SERVER_URL -SkipBuild
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: GhostAI-windows-x64
+          path: artifacts/GhostAI-windows-x64.zip

@@ -1,0 +1,18 @@
+services:
+  ghost-control:
+    build:
+      context: ..
+      dockerfile: server/Dockerfile
+    restart: unless-stopped
+    env_file: ../server/.env
+    environment:
+      GHOST_ENV: production
+      HOST: 0.0.0.0
+      PORT: "8787"
+      DB_PATH: /data/ghostai.sqlite
+    ports:
+      - "127.0.0.1:8787:8787"
+    volumes:
+      - ghost-control-data:/data
+volumes:
+  ghost-control-data:
