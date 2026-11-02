@@ -1,386 +1,256 @@
-use std::sync::{Arc, Mutex};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::thread;
-use std::time::Duration;
-use std::io::{self, Write};
-use base64::Engine;
-use lazy_static::lazy_static;
-use rand::Rng;
-use enigo::{Enigo, Key, Keyboard, Settings};
+use tracing::{info, error};
 
-use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
-use windows::Win32::UI::WindowsAndMessaging::{
-    CallNextHookEx, DispatchMessageW, GetMessageW, PeekMessageW, SetWindowsHookExW,
-    UnhookWindowsHookEx, SetWindowDisplayAffinity, WDA_EXCLUDEFROMCAPTURE,
-    WH_KEYBOARD_LL, KBDLLHOOKSTRUCT, WM_KEYDOWN, WM_SYSKEYDOWN, PM_REMOVE, MSG
-};
-use windows::Win32::UI::Input::KeyboardAndMouse::{
-    GetAsyncKeyState, VK_BACK, VK_D, VK_F2, VK_P, VK_Q, VK_S, VK_T, VK_Z, VK_MENU
-};
-use windows::Win32::System::LibraryLoader::GetModuleHandleW;
+const GROQ_API_KEY: &str = "gsk_LtXdIfdM3YR4Pp9LNZ1QWGdyb3FYE8A";
+const GROQ_URL: &str = "https://api.groq.com/openai/v1/chat/completions";
+const MODEL_VISION: &str = "qwen/qwen3.8-27b";
+const MODEL_TEXT: &str = "openai/gpt-oss-120b";
 
-// ==========================================
-// GLOBAL STATE & ATOMICS
-// ==========================================
-lazy_static! {
-    static ref SCREENSHOTS: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
-    static ref AI_SOLUTION: Arc<Mutex<String>> = Arc::new(Mutex::new(String::new()));
-    static ref SELECTED_LANG: Arc<Mutex<String>> = Arc::new(Mutex::new("C++".to_string()));
-    static ref HWID: String = machine_uid::get().unwrap_or_else(|_| "UNKNOWN_HWID".to_string());
-}
+pub async fn ask_with_multi_screenshot(
+    screenshots: Vec<String>,
+) -> Result<String, Box<dyn std::error::Error>> {
+    info!("AI call: {} screenshots", screenshots.len());
 
-static TYPING_ACTIVE: AtomicBool = AtomicBool::new(false);
-static TYPING_PAUSED: AtomicBool = AtomicBool::new(false);
-static OVERLAY_VISIBLE: AtomicBool = AtomicBool::new(true);
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(90))
+        .build()?;
 
+    let mut content: Vec<serde_json::Value> = Vec::new();
 
-// ==========================================
-// HWID & SECURITY SYSTEM
-// ==========================================
-fn verify_hardware_lock() -> bool {
-    println!("\n========================================================");
-    println!(" [🔒 HARDWARE LOCK ENFORCED]");
-    println!("  Device HWID: {}", *HWID);
-    println!("========================================================");
-    
-    print!("\n[?] Enter 8-digit Registration Number: ");
-    io::stdout().flush().unwrap();
-
-    let mut input_reg = String::new();
-    io::stdin().read_line(&mut input_reg).unwrap();
-    let input_reg = input_reg.trim();
-
-    if input_reg.len() != 8 || !input_reg.chars().all(|c| c.is_ascii_digit()) {
-        println!("[❌] Invalid Registration Code. Format must be 8 digits.");
-        return false;
-    }
-
-    println!("[✅] License Validated for Device HWID: {}", *HWID);
-    true
-}
-
-// ==========================================
-// STEALTH DISPLAY AFFINITY (CAPTURE EXCLUSION)
-// ==========================================
-pub fn enable_stealth_capture_exclusion(hwnd: HWND) {
-    unsafe {
-        // WDA_EXCLUDEFROMCAPTURE hides the window from all screenshots, screen recording, and proctor scanners
-        let _ = SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE);
-    }
-}
-
-// ==========================================
-// HUMANIZED TYPER ENGINE (ANTI-BOT DETECT)
-// ==========================================
-fn trigger_human_typing() {
-    if TYPING_ACTIVE.load(Ordering::SeqCst) {
-        println!("[!] Typing already in progress.");
-        return;
-    }
-
-    let text = AI_SOLUTION.lock().unwrap().clone();
-    if text.is_empty() {
-        println!("[⚠️] No AI solution available to type. Press Alt+D first.");
-        return;
-    }
-
-    println!("[🚀] Human Typing Started...");
-    TYPING_ACTIVE.store(true, Ordering::SeqCst);
-    TYPING_PAUSED.store(false, Ordering::SeqCst);
-
-    tokio::task::spawn_blocking(move || {
-        let mut enigo = Enigo::new(&Settings::default());
-        let mut rng = rand::thread_rng();
-
-        for ch in text.chars() {
-            // Check panic / stop flags
-            if !TYPING_ACTIVE.load(Ordering::SeqCst) {
-                println!("[🛑] Typing Cancelled.");
-                break;
-            }
-
-            // Check pause flag
-            while TYPING_PAUSED.load(Ordering::SeqCst) {
-                thread::sleep(Duration::from_millis(100));
-                if !TYPING_ACTIVE.load(Ordering::SeqCst) {
-                    println!("[🛑] Typing Cancelled while Paused.");
-                    return;
-                }
-            }
-
-            // Human Latency Jitter Logic
-            let delay_ms = match ch {
-                '\n' => rng.gen_range(350..700),           // Line break pause
-                '.' | ';' | '{' | '}' => rng.gen_range(180..350), // Syntax pauses
-                ',' | '(' | ')' | '[' | ']' => rng.gen_range(120..220),
-                ' ' => rng.gen_range(60..130),
-                _ => rng.gen_range(35..100),              // Natural typing speed
-            };
-
-            thread::sleep(Duration::from_millis(delay_ms));
-
-            match ch {
-                ' ' => { let _ = enigo.key(Key::Space, enigo::Direction::Click); }
-                '\n' => { let _ = enigo.key(Key::Return, enigo::Direction::Click); }
-                '\t' => { let _ = enigo.key(Key::Tab, enigo::Direction::Click); }
-                _ => { let _ = enigo.text(&ch.to_string()); }
-            }
-        }
-
-        TYPING_ACTIVE.store(false, Ordering::SeqCst);
-        println!("[✅] Human Typing Finished.");
-    });
-}
-
-// ==========================================
-// SCREEN CAPTURE SYSTEM
-// ==========================================
-fn capture_screen_to_base64() -> Option<String> {
-    let screens = screenshots::Screen::all().ok()?;
-    let primary = screens.into_iter().find(|s| s.display_info.is_primary)
-        .or_else(|| screenshots::Screen::all().ok()?.into_iter().next())?;
-
-    let image = primary.capture().ok()?;
-    let dynamic_img = image::DynamicImage::ImageRgba8(
-        image::ImageBuffer::from_raw(image.width(), image.height(), image.rgba().to_vec())?
-    );
-
-    let mut buffer = std::io::Cursor::new(Vec::new());
-    dynamic_img.write_to(&mut buffer, image::ImageFormat::Png).ok()?;
-    Some(base64::engine::general_purpose::STANDARD.encode(buffer.into_inner()))
-}
-
-// ==========================================
-// GROQ VISION AI INTEGRATION
-// ==========================================
-async fn request_ai_solution() {
-    let images = SCREENSHOTS.lock().unwrap().clone();
-    if images.is_empty() {
-        println!("[⚠️] No screenshots in queue! Press Alt+S to capture first.");
-        return;
-    }
-
-    let api_key = match std::env::var("GROQ_API_KEY") {
-        Ok(key) if !key.trim().is_empty() => key,
-        Ok(_) => {
-            eprintln!("[ERROR] GROQ_API_KEY environment variable is empty.");
-            return;
-        }
-        Err(_) => {
-            eprintln!("[ERROR] Set GROQ_API_KEY before requesting an AI solution.");
-            return;
-        }
-    };
-
-    let lang = SELECTED_LANG.lock().unwrap().clone();
-    println!("[⏳] Querying AI (Language: {} | Screenshots: {})...", lang, images.len());
-
-    let client = reqwest::Client::new();
-    let system_prompt = format!(
-        "Target Language: {}\n\
-        You are solving a programming task or MCQ question captured from screen.\n\
-        Format rules:\n\
-        - Remove all unnecessary spaces and blank lines\n\
-        - Keep code compact and minified style\n\
-        - No comments\n\
-        - No extra text before or after code\n\
-        - No markdown formatting, no backticks\n\
-        - Output raw code or chosen MCQ option letter only",
-        lang
-    );
-
-    let mut content_array = vec![serde_json::json!({
+    content.push(serde_json::json!({
         "type": "text",
-        "text": system_prompt
-    })];
+        "text": "These are screenshots of a coding problem from top to bottom."
+    }));
 
-    for img in images {
-        content_array.push(serde_json::json!({
+    for (i, b64) in screenshots.iter().enumerate() {
+        content.push(serde_json::json!({
+            "type": "text",
+            "text": format!("Screenshot {} of {}:", i + 1, screenshots.len())
+        }));
+        content.push(serde_json::json!({
             "type": "image_url",
             "image_url": {
-                "url": format!("data:image/png;base64,{}", img)
+                "url": format!("data:image/png;base64,{}", b64)
             }
         }));
     }
 
+    content.push(serde_json::json!({
+        "type": "text",
+        "text": get_user_prompt()
+    }));
+
     let body = serde_json::json!({
-        "model": "meta-llama/llama-4-scout-17b-16e-instruct",
+        "model": MODEL_VISION,
         "messages": [
             {
+                "role": "system",
+                "content": get_system_prompt()
+            },
+            {
                 "role": "user",
-                "content": content_array
+                "content": content
             }
         ],
         "temperature": 0.0,
-        "max_tokens": 2048
+        "max_tokens": 8192
     });
 
-    let res = client.post("https://api.groq.com/openai/v1/chat/completions")
-        .header("Authorization", format!("Bearer {}", api_key))
+    call_api(client, body).await
+}
+
+pub async fn ask_with_screenshot(
+    screenshot: String,
+) -> Result<String, Box<dyn std::error::Error>> {
+    ask_with_multi_screenshot(vec![screenshot]).await
+}
+
+pub async fn ask_with_context(
+    page_text: String,
+    screenshot: String,
+) -> Result<String, Box<dyn std::error::Error>> {
+    info!("AI: text + screenshot");
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(60))
+        .build()?;
+
+    let body = serde_json::json!({
+        "model": MODEL_VISION,
+        "messages": [
+            {
+                "role": "system",
+                "content": get_system_prompt()
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": format!(
+                            "Page text:\n{}",
+                            &page_text[..page_text.len().min(3000)]
+                        )
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": format!(
+                                "data:image/png;base64,{}",
+                                screenshot
+                            )
+                        }
+                    },
+                    {
+                        "type": "text",
+                        "text": get_user_prompt()
+                    }
+                ]
+            }
+        ],
+        "temperature": 0.0,
+        "max_tokens": 8192
+    });
+
+    call_api(client, body).await
+}
+
+pub async fn ask_groq_smart_text(
+    problem: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
+    info!("AI: text only");
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()?;
+
+    let body = serde_json::json!({
+        "model": MODEL_TEXT,
+        "messages": [
+            {
+                "role": "system",
+                "content": get_system_prompt()
+            },
+            {
+                "role": "user",
+                "content": format!(
+                    "{}\n\nProblem:\n{}",
+                    get_user_prompt(),
+                    &problem[..problem.len().min(4000)]
+                )
+            }
+        ],
+        "temperature": 0.0,
+        "max_tokens": 8192,
+        "stream": false
+    });
+
+    call_api(client, body).await
+}
+
+async fn call_api(
+    client: reqwest::Client,
+    body: serde_json::Value,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let res = client
+        .post(GROQ_URL)
+        .header(
+            "Authorization",
+            format!("Bearer {}", GROQ_API_KEY)
+        )
         .header("Content-Type", "application/json")
         .json(&body)
         .send()
-        .await;
+        .await?;
 
-    match res {
-        Ok(response) => {
-            if let Ok(json_val) = response.json::<serde_json::Value>().await {
-                if let Some(content) = json_val["choices"][0]["message"]["content"].as_str() {
-                    let cleaned = content.trim().to_string();
-                    *AI_SOLUTION.lock().unwrap() = cleaned.clone();
-                    println!("\n[🎯 SOLUTION RECEIVED]:\n--------------------------------\n{}\n--------------------------------", cleaned);
-                    println!("[💡] Press Alt+T to start human typing.");
-                } else {
-                    println!("[❌] Error reading AI response content.");
-                }
-            }
-        }
-        Err(e) => println!("[❌] Network error querying Groq API: {:?}", e),
+    let status = res.status();
+    info!("API status: {}", status);
+
+    let raw = res.text().await?;
+    info!("Response: {}", &raw[..raw.len().min(300)]);
+
+    let json: serde_json::Value = serde_json::from_str(&raw)?;
+
+    if let Some(content) = json["choices"][0]["message"]["content"]
+        .as_str()
+    {
+        return Ok(clean_response(content));
     }
+
+    if let Some(err) = json["error"]["message"].as_str() {
+        error!("API error: {}", err);
+        return Err(err.into());
+    }
+
+    Err("No content".into())
 }
 
-// ==========================================
-// WIN32 LOW-LEVEL KEYBOARD HOOK (ALT HOTKEYS)
-// ==========================================
-unsafe extern "system" fn keyboard_hook_proc(n_code: i32, w_param: WPARAM, l_param: LPARAM) -> LRESULT {
-    if n_code >= 0 {
-        let kbd = *(l_param.0 as *const KBDLLHOOKSTRUCT);
-        let is_sys_key = w_param.0 == WM_SYSKEYDOWN as usize || w_param.0 == WM_KEYDOWN as usize;
-        let alt_pressed = (kbd.flags.0 & 0x20) != 0 || (GetAsyncKeyState(VK_MENU.0 as i32) & 0x8000 != 0);
-
-        if is_sys_key {
-            // F2: Toggle Overlay Visibility (No Alt required)
-            if kbd.vkCode == VK_F2.0 as u32 {
-                let current = OVERLAY_VISIBLE.load(Ordering::SeqCst);
-                OVERLAY_VISIBLE.store(!current, Ordering::SeqCst);
-                println!("[👁️] Overlay Visibility: {}", !current);
-                return LRESULT(1);
-            }
-
-            // ALT COMBINATIONS
-            if alt_pressed {
-                match kbd.vkCode {
-                    // Alt + S: Capture Screenshot
-                    0x53 => { // VK_S
-                        if let Some(base64_img) = capture_screen_to_base64() {
-                            let mut queue = SCREENSHOTS.lock().unwrap();
-                            queue.push(base64_img);
-                            println!("[📸] Screenshot captured. Queue size: {}", queue.len());
-                        }
-                        return LRESULT(1);
-                    }
-                    // Alt + Backspace: Remove Last Screenshot
-                    0x08 => { // VK_BACK
-                        let mut queue = SCREENSHOTS.lock().unwrap();
-                        if queue.pop().is_some() {
-                            println!("[🗑️] Last screenshot removed. Queue size: {}", queue.len());
-                        } else {
-                            println!("[⚠️] Screenshot queue is already empty.");
-                        }
-                        return LRESULT(1);
-                    }
-                    // Alt + D: Send Queue to AI
-                    0x44 => { // VK_D
-                        tokio::spawn(async {
-                            request_ai_solution().await;
-                        });
-                        return LRESULT(1);
-                    }
-                    // Alt + T: Start Typing Answer
-                    0x54 => { // VK_T
-                        trigger_human_typing();
-                        return LRESULT(1);
-                    }
-                    // Alt + P: Pause / Resume Typing
-                    0x50 => { // VK_P
-                        if TYPING_ACTIVE.load(Ordering::SeqCst) {
-                            let paused = TYPING_PAUSED.load(Ordering::SeqCst);
-                            TYPING_PAUSED.store(!paused, Ordering::SeqCst);
-                            println!("[⏸️] Typing Paused: {}", !paused);
-                        }
-                        return LRESULT(1);
-                    }
-                    // Alt + Z: Panic Mode
-                    0x5A => { // VK_Z
-                        TYPING_ACTIVE.store(false, Ordering::SeqCst);
-                        OVERLAY_VISIBLE.store(false, Ordering::SeqCst);
-                        SCREENSHOTS.lock().unwrap().clear();
-                        println!("[🚨 PANIC MODE ACTIVATED] Stopped typing, cleared queue, hid overlay.");
-                        return LRESULT(1);
-                    }
-                    // Alt + Q: Quit App
-                    0x51 => { // VK_Q
-                        println!("[👋] Exiting GhostAI system.");
-                        std::process::exit(0);
-                    }
-                    _ => {}
-                }
-            }
-        }
-    }
-    CallNextHookEx(None, n_code, w_param, l_param)
+fn get_system_prompt() -> String {
+    String::from(
+        "Give me only the code (no explanation). \
+Format rules: \
+Remove all unnecessary spaces and blank lines. \
+Keep code compact and minified style. \
+No comments. \
+No extra text before or after code. \
+Keep everything as tight as possible but still valid syntax. \
+No markdown. \
+No backticks. \
+Output raw code only. \
+Do not repeat existing code. \
+If a template exists give only the missing body. \
+Keep line breaks between statements. \
+Use minimal spaces only where required by language syntax."
+    )
 }
 
-// ==========================================
-// MAIN ENTRY POINT
-// ==========================================
-#[tokio::main]
-async fn main() {
-    println!("=== GHOST AI ENHANCED SYSTEM v2.0 ===");
+fn get_user_prompt() -> &'static str {
+    "Give me only the code (no explanation).
 
-    if !verify_hardware_lock() {
-        println!("[❌] HWID Authentication failed. Tool locked.");
-        return;
+Format rules:
+- Remove all unnecessary spaces and blank lines
+- Keep code compact and minified style
+- No comments
+- No extra text before or after code
+- Keep everything as tight as possible but still valid syntax
+- No markdown
+- No backticks
+- Output raw code only
+- Do not repeat existing code
+- If a template exists give only the missing body"
+}
+
+fn clean_response(raw: &str) -> String {
+    let mut s = raw.trim().to_string();
+
+    if s.starts_with("```") {
+        if let Some(pos) = s.find('\n') {
+            s = s[pos + 1..].to_string();
+        }
     }
 
-    println!("\nSelect Programming Language Setup:");
-    println!(" [1] C++");
-    println!(" [2] Java");
-    println!(" [3] C");
-    print!("[?] Choose (1-3) [Default 1]: ");
-    io::stdout().flush().unwrap();
-
-    let mut choice = String::new();
-    io::stdin().read_line(&mut choice).unwrap();
-    let chosen_lang = match choice.trim() {
-        "2" => "Java",
-        "3" => "C",
-        _ => "C++",
-    };
-
-    *SELECTED_LANG.lock().unwrap() = chosen_lang.to_string();
-    println!("[✅] Language locked to: {}", chosen_lang);
-
-    println!("\n========================================================");
-    println!(" ⌨️ HOTKEY MAP ACTIVE:");
-    println!("  • Alt + S         : Capture Screenshot (Queue)");
-    println!("  • Alt + Backspace : Remove Last Screenshot");
-    println!("  • Alt + D         : Send Queue to AI");
-    println!("  • Alt + T         : Start Human Typing");
-    println!("  • Alt + P         : Pause / Resume Typing");
-    println!("  • F2              : Toggle Stealth Overlay");
-    println!("  • Alt + Z         : Panic Mode (Hide & Cancel)");
-    println!("  • Alt + Q         : Quit System");
-    println!("========================================================\n");
-
-    // Install Global Win32 Hook
-    unsafe {
-        let h_instance = GetModuleHandleW(None).unwrap();
-        let hook = SetWindowsHookExW(WH_KEYBOARD_LL, Some(keyboard_hook_proc), h_instance, 0);
-
-        if hook.is_err() {
-            println!("[❌] Failed to install keyboard hook. Run as Administrator!");
-            return;
-        }
-        println!("[🛡️] Low-Level Win32 Stealth Hook Registered.");
-
-        // Windows Event Loop
-        let mut msg = MSG::default();
-        while GetMessageW(&mut msg, HWND(0), 0, 0).into() {
-            DispatchMessageW(&msg);
-            PeekMessageW(&msg, HWND(0), 0, 0, PM_REMOVE);
-        }
-
-        let _ = UnhookWindowsHookEx(hook.unwrap());
+    let trimmed = s.trim_end().to_string();
+    if trimmed.ends_with("```") {
+        s = trimmed[..trimmed.len() - 3].to_string();
     }
+
+    s = s.replace("```", "");
+
+    // Remove lines that look like explanations
+    let lines: Vec<&str> = s
+        .lines()
+        .filter(|line| {
+            let l = line.to_lowercase();
+            !l.starts_with("here is")
+                && !l.starts_with("here's")
+                && !l.starts_with("the code")
+                && !l.starts_with("this code")
+                && !l.starts_with("solution")
+                && !l.starts_with("output")
+                && !l.starts_with("note")
+                && !l.starts_with("explanation")
+        })
+        .collect();
+
+    s = lines.join("\n");
+    s.trim().to_string()
 }
