@@ -29,7 +29,7 @@ where T: PartialOrd + Copy {
         Err(_) => Ok(fallback),
         Ok(raw) if raw.is_empty() => Ok(fallback),
         Ok(raw) => {
-            let value = raw.parse::<T>().with_context(|| format!("{name} has an invalid integer value"))?;
+            let value = raw.parse::<T>().map_err(|_| anyhow::anyhow!("{name} has an invalid integer value"))?;
             if value < min || value > max { bail!("{name} is outside its allowed range"); }
             Ok(value)
         }

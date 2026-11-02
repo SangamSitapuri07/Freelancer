@@ -7,7 +7,7 @@ pub mod groq;
 pub mod models;
 pub mod security;
 
-use axum::{body::Body, extract::{DefaultBodyLimit, Request}, http::{header, HeaderValue}, middleware::{self, Next}, response::{IntoResponse, Redirect, Response}, routing::{get, post}, Json, Router};
+use axum::{body::Body, extract::{DefaultBodyLimit, Request}, http::{header, HeaderValue}, middleware::{self, Next}, response::{Redirect, Response}, routing::{get, post}, Json, Router};
 use config::Config;
 use db::Db;
 use groq::AiProvider;

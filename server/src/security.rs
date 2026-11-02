@@ -1,5 +1,5 @@
 use hmac::{Hmac, Mac};
-use rand::RngCore;
+use rand::{Rng, RngCore};
 use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
 

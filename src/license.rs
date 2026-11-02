@@ -133,10 +133,12 @@ fn default_store() -> Result<Box<dyn SessionStore>, ControlError> { Err(ControlE
 
 #[cfg(target_os = "windows")]
 fn prompt_code() -> Result<Option<String>, ControlError> {
-    Ok(tinyfiledialogs::input_dialog("GhostAI activation", "Enter your 8-digit registration code:", ""))
+    Ok(tinyfiledialogs::input_box("GhostAI activation", "Enter your 8-digit registration code:", ""))
 }
 #[cfg(target_os = "windows")]
-fn show_error(message: &str) { tinyfiledialogs::message_box("GhostAI", message, "error"); }
+fn show_error(message: &str) {
+    tinyfiledialogs::message_box_ok("GhostAI", message, tinyfiledialogs::MessageBoxIcon::Error);
+}
 
 async fn activate(code: &str) -> Result<ActivateResponse, ControlError> {
     let response = client(Duration::from_secs(20))?.post(format!("{}/v1/activate", server_url()?))

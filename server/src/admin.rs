@@ -117,7 +117,14 @@ pub fn dashboard_html_with_headers(state: &AppState, headers: &HeaderMap, flash:
 
 pub async fn login(State(state): State<Arc<AppState>>, headers: HeaderMap, Form(form): Form<LoginForm>) -> Result<Response, ApiError> {
     let mut conn = state.db.lock()?;
+    let ip = if state.config.trust_proxy {
+        headers.get("x-forwarded-for").and_then(|v| v.to_str().ok())
+            .and_then(|raw| raw.split(',').next_back()).map(str::trim)
+            .filter(|value| value.parse::<std::net::IpAddr>().is_ok()).unwrap_or("unknown")
+    } else { "direct" };
+    let ip_key = security::privacy_key(&format!("admin-ip:{ip}"), &state.config.pepper);
     let global = security::privacy_key("admin-login-global", &state.config.pepper);
+    ensure(db::hit_limit(&mut conn, &ip_key, 10, 15 * 60 * 1000)?, ApiError::new(StatusCode::TOO_MANY_REQUESTS, "rate_limited", "Too many sign-in attempts; try later"))?;
     ensure(db::hit_limit(&mut conn, &global, 20, 15 * 60 * 1000)?, ApiError::new(StatusCode::TOO_MANY_REQUESTS, "rate_limited", "Too many sign-in attempts; try later"))?;
     if !security::constant_eq(&form.password, &state.config.admin_password) {
         db::audit(&conn, "admin_login_failed", None, json!({}))?;

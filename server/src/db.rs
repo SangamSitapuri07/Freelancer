@@ -149,6 +149,6 @@ pub fn recover_interrupted_requests(db: &Db) -> Result<usize> {
     Ok(rows.len())
 }
 
-pub fn get_request(conn: &Connection, id: &str) -> rusqlite::Result<Option<AiRequest>> {
+pub fn get_request(conn: &Connection, id: &str) -> Option<AiRequest> {
     conn.query_row("SELECT * FROM ai_requests WHERE id=?1", params![id], AiRequest::from_row).ok()
 }
