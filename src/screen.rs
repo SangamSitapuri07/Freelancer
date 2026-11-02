@@ -37,7 +37,10 @@ pub fn take_screenshot() -> Option<String> {
 }
 
 pub async fn process_screenshots(screenshots: Vec<String>) {
-    AI_PROCESSING.store(true, Ordering::SeqCst);
+    if AI_PROCESSING.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst).is_err() {
+        info!("An AI request is already processing");
+        return;
+    }
     SOLUTION_READY.store(false, Ordering::SeqCst);
 
     info!("Processing {} screenshots...", screenshots.len());
@@ -45,7 +48,6 @@ pub async fn process_screenshots(screenshots: Vec<String>) {
     match crate::ai::ask_with_multi_screenshot(screenshots).await {
         Ok(solution) if !solution.is_empty() => {
             info!("Solution: {} chars", solution.len());
-            info!("Preview: {}", &solution[..solution.len().min(200)]);
 
             // Copy to clipboard
             if let Ok(mut cb) = arboard::Clipboard::new() {
@@ -61,6 +63,7 @@ pub async fn process_screenshots(screenshots: Vec<String>) {
 
             TYPING_INDEX.store(0, Ordering::SeqCst);
             SOLUTION_READY.store(true, Ordering::SeqCst);
+            crate::SCREENSHOTS.lock().unwrap().clear();
 
             info!("READY!");
             info!("Solution is in clipboard (Ctrl+V to see)");

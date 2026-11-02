@@ -3,7 +3,7 @@
 mod ai;
 mod screen;
 mod typer;
-mod scroller;
+mod license;
 
 use lazy_static::lazy_static;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -73,6 +73,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let _ = FreeConsole();
     }
 
+    #[cfg(target_os = "windows")]
+    {
+        license::initialize().await?;
+        license::spawn_watch();
+    }
+
     info!("Starting keyboard hook...");
     info!("AAAA=Screenshot mode");
     info!("SSSS=Take screenshot");
@@ -90,7 +96,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 #[cfg(target_os = "windows")]
 fn start_hook() {
-    use windows::Win32::Foundation::{LPARAM, LRESULT, WPARAM};
+    use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
+    use windows::Win32::System::LibraryLoader::GetModuleHandleW;
     use windows::Win32::UI::WindowsAndMessaging::*;
     use windows::Win32::UI::Input::KeyboardAndMouse::*;
 
@@ -294,10 +301,11 @@ fn start_hook() {
     }
 
     unsafe {
+        let module = GetModuleHandleW(None).unwrap();
         SetWindowsHookExW(
             WH_KEYBOARD_LL,
             Some(hook_proc),
-            None,
+            module,
             0,
         ).unwrap();
 
@@ -305,7 +313,9 @@ fn start_hook() {
 
         let mut msg = MSG::default();
         loop {
-            GetMessageW(&mut msg, None, 0, 0);
+            let result = GetMessageW(&mut msg, HWND::default(), 0, 0);
+            if result.0 <= 0 { break; }
+            DispatchMessageW(&msg);
         }
     }
 }

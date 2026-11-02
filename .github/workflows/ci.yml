@@ -1,0 +1,45 @@
+name: CI
+on:
+  push:
+    branches: [ghost, "arena/**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  server:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Generate lockfile
+        run: cargo generate-lockfile
+      - name: Test control server
+        run: cargo test -p ghost-control-server
+      - name: Build control server
+        run: cargo build --release -p ghost-control-server
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cargo-lock
+          path: Cargo.lock
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ghost-control-server-linux
+          path: target/release/ghost-control-server
+
+  windows-client:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build Windows client
+        run: cargo build --release -p ghost_ai
+      - name: Package ZIP
+        shell: pwsh
+        run: ./scripts/package-windows.ps1 -ServerUrl "http://127.0.0.1:8787" -SkipBuild
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GhostAI-windows-x64
+          path: artifacts/GhostAI-windows-x64.zip
